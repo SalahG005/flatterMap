@@ -93,24 +93,29 @@
     const data = await res.json();
 
     (data.documents || []).forEach(doc => {
-      const f   = doc.fields;
-      const cat = f.category?.stringValue;
-      if (f.status?.stringValue !== 'validated') return;
-      if (category !== 'all' && cat !== category) return;
-      const lat = f.lat?.doubleValue;
-      const lng = f.lng?.doubleValue;
-      addMarker({
-        id:       doc.name.split('/').pop(),
-        name:     f.name?.stringValue || '',
-        category: cat,
-        city:     f.city?.stringValue || '',
-        score:    (f.score?.doubleValue || 0),
-        photo:    f.photo_url?.stringValue || '',
-        lat, lng
-      });
+  const f = doc.fields;
+  const cat = f.category?.stringValue || '';
+  
+  if (f.status?.stringValue !== 'validated') return;
+
+  // Change this line to be case-insensitive:
+  if (category.toLowerCase() !== 'all' && cat.toLowerCase() !== category.toLowerCase()) return;
+
+  const lat = f.lat?.doubleValue || parseFloat(f.lat?.integerValue || 0);
+  const lng = f.lng?.doubleValue || parseFloat(f.lng?.integerValue || 0);
+  
+  if (lat && lng) {
+    addMarker({
+      id: doc.name.split('/').pop(),
+      name: f.name?.stringValue || '',
+      category: cat,
+      city: f.city?.stringValue || '',
+      score: (f.score?.doubleValue || 0),
+      photo: f.photo_url?.stringValue || '',
+      lat, lng
     });
-    
   }
+});
 
   function addMarker(s) {
     const popup = `
