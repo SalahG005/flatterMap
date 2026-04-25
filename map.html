@@ -20,9 +20,7 @@
     .cat-cafe       { background: #854F0B; }
     .cat-activite   { background: #3B6D11; }
 
-    .leaflet-popup-content-wrapper {
-      border-radius: 12px; padding: 0; overflow: hidden;
-    }
+    .leaflet-popup-content-wrapper { border-radius: 12px; padding: 0; overflow: hidden; }
     .leaflet-popup-content { margin: 0; }
     .popup-box { font-family: sans-serif; min-width: 180px; }
     .popup-img { width: 100%; height: 90px; object-fit: cover; background: #E6CCB2; }
@@ -40,26 +38,18 @@
 <body>
 <div id="map"></div>
 <script>
-  // ── REMPLACE CES DEUX VALEURS ──────────────────────
-  const MAPBOX_TOKEN    = "pk.eyJ1IjoiZ25hb3Vpc2FsYWgiLCJhIjoiY21vZGtsdGhvMDNkbjJwczYzcXVnbHBlYiJ9.NluIh57i5SK8hwwksmf6SQ";
+  const MAPBOX_TOKEN = "pk.eyJ1IjoiZ25hb3Vpc2FsYWgiLCJhIjoiY21vZGtsdGhvMDNkbjJwczYzcXVnbHBlYiJ9.NluIh57i5SK8hwwksmf6SQ";
   const FIREBASE_PROJECT = "flatterflowsalah";
-  const FIREBASE_APIKEY  = "AIzaSyDWY8zouKK1wJwGmFIJDudpQls7Q0eFO0A";
-  // ───────────────────────────────────────────────────
+  const FIREBASE_APIKEY = "AIzaSyDWY8zouKK1wJwGmFIJDudpQls7Q0eFO0A";
 
-  const params   = new URLSearchParams(window.location.search);
+  const params = new URLSearchParams(window.location.search);
   const category = params.get('cat') || 'all';
 
   const map = L.map('map').setView([36.82, 10.18], 12);
 
-  // ✅ Mapbox tiles — fonctionne sans serveur, sans referer
   L.tileLayer(
     'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token=' + MAPBOX_TOKEN,
-    {
-      attribution: '© Mapbox © OpenStreetMap',
-      tileSize: 512,
-      zoomOffset: -1,
-      maxZoom: 19
-    }
+    { attribution: '© Mapbox © OpenStreetMap', tileSize: 512, zoomOffset: -1, maxZoom: 19 }
   ).addTo(map);
 
   const icons = {
@@ -70,7 +60,7 @@
   };
 
   function makeIcon(cat) {
-    const c = icons[cat] || { emoji: '📍', cls: 'cat-restaurant' };
+    const c = icons[cat.toLowerCase()] || { emoji: '📍', cls: 'cat-restaurant' };
     return L.divIcon({
       className: '',
       html: `<div class="marker-icon ${c.cls}"><span>${c.emoji}</span></div>`,
@@ -81,41 +71,39 @@
   }
 
   async function loadSpots() {
-    // ── TEST LOCAL : spots codés en dur ──────────────
-    // Quand Firebase sera connecté, supprime ce bloc
-    // et décommente la partie fetch() en dessous
-   //
+    try {
+      const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents/spots?key=${FIREBASE_APIKEY}&pageSize=200`;
+      const res = await fetch(url);
+      const data = await res.json();
 
-    // ── FIREBASE RÉEL : décommenter quand prêt ───────
-   
-    const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents/spots?key=${FIREBASE_APIKEY}&pageSize=200`;
-    const res  = await fetch(url);
-    const data = await res.json();
+      (data.documents || []).forEach(doc => {
+        const f = doc.fields;
+        const cat = f.category?.stringValue || '';
+        
+        if (f.status?.stringValue !== 'validated') return;
 
-    (data.documents || []).forEach(doc => {
-  const f = doc.fields;
-  const cat = f.category?.stringValue || '';
-  
-  if (f.status?.stringValue !== 'validated') return;
+        // Case-insensitive filtering
+        if (category.toLowerCase() !== 'all' && cat.toLowerCase() !== category.toLowerCase()) return;
 
-  // Change this line to be case-insensitive:
-  if (category.toLowerCase() !== 'all' && cat.toLowerCase() !== category.toLowerCase()) return;
-
-  const lat = f.lat?.doubleValue || parseFloat(f.lat?.integerValue || 0);
-  const lng = f.lng?.doubleValue || parseFloat(f.lng?.integerValue || 0);
-  
-  if (lat && lng) {
-    addMarker({
-      id: doc.name.split('/').pop(),
-      name: f.name?.stringValue || '',
-      category: cat,
-      city: f.city?.stringValue || '',
-      score: (f.score?.doubleValue || 0),
-      photo: f.photo_url?.stringValue || '',
-      lat, lng
-    });
-  }
-});
+        const lat = f.lat?.doubleValue || parseFloat(f.lat?.integerValue || 0);
+        const lng = f.lng?.doubleValue || parseFloat(f.lng?.integerValue || 0);
+        
+        if (lat && lng) {
+          addMarker({
+            id: doc.name.split('/').pop(),
+            name: f.name?.stringValue || '',
+            category: cat,
+            city: f.city?.stringValue || '',
+            score: (f.score?.doubleValue || 0),
+            photo: f.photo_url?.stringValue || '',
+            lat, lng
+          });
+        }
+      });
+    } catch (e) {
+      console.error("Error loading spots:", e);
+    }
+  } // <--- THIS WAS MISSING
 
   function addMarker(s) {
     const popup = `
