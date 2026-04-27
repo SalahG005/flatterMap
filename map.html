@@ -61,15 +61,13 @@
 
       (data.documents || []).forEach(doc => {
         const f = doc.fields;
-        const name = f.name?.stringValue.toLowerCase().trim();
+        const name = (f.name?.stringValue || '').toLowerCase().trim();
         categoryStyles[name] = {
           emoji: f.emoji?.stringValue || '📍',
           color: f.color?.stringValue || '#C45B38'
         };
+        console.log("✅ Stored category key:", name, "→", categoryStyles[name]);
       });
-
-      // 🔍 DEBUG: See all category keys loaded from Firebase
-      console.log("✅ Categories loaded:", JSON.stringify(categoryStyles, null, 2));
 
     } catch (e) {
       console.error("❌ Error loading categories:", e);
@@ -80,9 +78,10 @@
     const key = (catName || '').toLowerCase().trim();
     const style = categoryStyles[key] || { emoji: '📍', color: '#999' };
 
-    // 🔍 DEBUG: See if the key matches a category
     if (!categoryStyles[key]) {
-      console.warn(`⚠️ No style found for category: "${key}" — using default gray`);
+      console.warn(`⚠️ No match for category: "${key}" — keys available:`, Object.keys(categoryStyles));
+    } else {
+      console.log(`🎨 Icon for "${key}":`, style);
     }
 
     return L.divIcon({
@@ -113,8 +112,7 @@
         const lat = f.lat?.doubleValue || parseFloat(f.lat?.integerValue || 0);
         const lng = f.lng?.doubleValue || parseFloat(f.lng?.integerValue || 0);
 
-        // 🔍 DEBUG: See what category each spot has
-        console.log(`📍 Spot: "${f.name?.stringValue}" → category: "${spotCat}"`);
+        console.log(`📍 Spot: "${f.name?.stringValue}" | category: "${spotCat}"`);
 
         if (lat && lng) {
           addMarker({
@@ -122,7 +120,7 @@
             name: f.name?.stringValue || 'Unknown Spot',
             category: spotCat,
             city: f.city?.stringValue || '',
-            score: (f.score?.doubleValue || 0),
+            score: (f.score?.doubleValue || parseFloat(f.score?.integerValue) || 0),
             photo: f.photo_url?.stringValue || '',
             lat, lng
           });
