@@ -5,11 +5,9 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    /* Reset and Map Fullscreen */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     #map { width: 100vw; height: 100vh; background: #f8f1e9; }
 
-    /* Dynamic Marker Styling */
     .marker-icon {
       width: 36px; height: 36px; border-radius: 50% 50% 50% 0;
       transform: rotate(-45deg);
@@ -19,7 +17,6 @@
     }
     .marker-icon span { transform: rotate(45deg); font-size: 16px; }
 
-    /* Popup Styling */
     .leaflet-popup-content-wrapper { border-radius: 12px; padding: 0; overflow: hidden; }
     .leaflet-popup-content { margin: 0; }
     .popup-box { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; min-width: 180px; }
@@ -54,10 +51,8 @@
     { attribution: '© Mapbox', tileSize: 512, zoomOffset: -1, maxZoom: 19 }
   ).addTo(map);
 
-  // Variable to store dynamic category styles from Firebase
   let categoryStyles = {};
 
-  // 1. Fetch Categories first to get Emojis and Colors
   async function loadStyles() {
     try {
       const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents/categories?key=${FIREBASE_APIKEY}`;
@@ -66,21 +61,30 @@
 
       (data.documents || []).forEach(doc => {
         const f = doc.fields;
-        const name = f.name?.stringValue.toLowerCase();
+        const name = f.name?.stringValue.toLowerCase().trim();
         categoryStyles[name] = {
           emoji: f.emoji?.stringValue || '📍',
-          color: f.color?.stringValue || '#C45B38' // Default honey brown
+          color: f.color?.stringValue || '#C45B38'
         };
       });
-      console.log("Styles loaded:", categoryStyles);
+
+      // 🔍 DEBUG: See all category keys loaded from Firebase
+      console.log("✅ Categories loaded:", JSON.stringify(categoryStyles, null, 2));
+
     } catch (e) {
-      console.error("Error loading categories:", e);
+      console.error("❌ Error loading categories:", e);
     }
   }
 
-  // 2. Build the Marker based on Category Style
   function makeIcon(catName) {
-    const style = categoryStyles[catName.toLowerCase()] || { emoji: '📍', color: '#999' };
+    const key = (catName || '').toLowerCase().trim();
+    const style = categoryStyles[key] || { emoji: '📍', color: '#999' };
+
+    // 🔍 DEBUG: See if the key matches a category
+    if (!categoryStyles[key]) {
+      console.warn(`⚠️ No style found for category: "${key}" — using default gray`);
+    }
+
     return L.divIcon({
       className: '',
       html: `<div class="marker-icon" style="background: ${style.color}"><span>${style.emoji}</span></div>`,
@@ -90,9 +94,8 @@
     });
   }
 
-  // 3. Load Spots and apply filter
   async function loadSpots() {
-    await loadStyles(); // Ensure styles are ready before placing markers
+    await loadStyles();
 
     try {
       const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents/spots?key=${FIREBASE_APIKEY}&pageSize=200`;
@@ -102,16 +105,17 @@
       (data.documents || []).forEach(doc => {
         const f = doc.fields;
         const spotCat = f.category?.stringValue || 'Default';
-        
-        // Filter out unvalidated spots
+
         if (f.status?.stringValue !== 'validated') return;
 
-        // URL Filter Logic
         if (filterCat.toLowerCase() !== 'all' && spotCat.toLowerCase() !== filterCat.toLowerCase()) return;
 
         const lat = f.lat?.doubleValue || parseFloat(f.lat?.integerValue || 0);
         const lng = f.lng?.doubleValue || parseFloat(f.lng?.integerValue || 0);
-        
+
+        // 🔍 DEBUG: See what category each spot has
+        console.log(`📍 Spot: "${f.name?.stringValue}" → category: "${spotCat}"`);
+
         if (lat && lng) {
           addMarker({
             id: doc.name.split('/').pop(),
@@ -125,7 +129,7 @@
         }
       });
     } catch (e) {
-      console.error("Error loading spots:", e);
+      console.error("❌ Error loading spots:", e);
     }
   }
 
@@ -148,10 +152,8 @@
 
   function openSpot(spotId) {
     try {
-      // For FlutterFlow InAppWebView
       window.flutter_inappwebview.callHandler('openSpot', spotId);
     } catch(e) {
-      // Fallback for deep linking
       window.location.href = '93aydaasal://spot/' + spotId;
     }
   }
