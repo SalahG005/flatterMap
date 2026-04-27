@@ -5,72 +5,95 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
+    /* Reset and Map Fullscreen */
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    #map { width: 100vw; height: 100vh; }
+    #map { width: 100vw; height: 100vh; background: #f8f1e9; }
 
+    /* Dynamic Marker Styling */
     .marker-icon {
       width: 36px; height: 36px; border-radius: 50% 50% 50% 0;
       transform: rotate(-45deg);
       display: flex; align-items: center; justify-content: center;
       border: 2px solid white;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     }
-    .marker-icon span { transform: rotate(45deg); font-size: 14px; }
-    .cat-restaurant { background: #C45B38; }
-    .cat-plage      { background: #185FA5; }
-    .cat-cafe       { background: #854F0B; }
-    .cat-activite   { background: #3B6D11; }
+    .marker-icon span { transform: rotate(45deg); font-size: 16px; }
 
+    /* Popup Styling */
     .leaflet-popup-content-wrapper { border-radius: 12px; padding: 0; overflow: hidden; }
     .leaflet-popup-content { margin: 0; }
-    .popup-box { font-family: sans-serif; min-width: 180px; }
-    .popup-img { width: 100%; height: 90px; object-fit: cover; background: #E6CCB2; }
+    .popup-box { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; min-width: 180px; }
+    .popup-img { width: 100%; height: 100px; object-fit: cover; background: #E6CCB2; }
     .popup-body { padding: 10px 12px; }
-    .popup-name { font-size: 14px; font-weight: 600; color: #3D2B1F; margin-bottom: 2px; }
-    .popup-meta { font-size: 11px; color: #888; margin-bottom: 4px; }
-    .popup-score { font-size: 12px; color: #C45B38; font-weight: 600; margin-bottom: 8px; }
+    .popup-name { font-size: 14px; font-weight: 700; color: #3D2B1F; margin-bottom: 2px; }
+    .popup-meta { font-size: 11px; color: #777; margin-bottom: 4px; text-transform: capitalize; }
+    .popup-score { font-size: 12px; color: #d4a373; font-weight: 600; margin-bottom: 8px; }
     .popup-btn {
-      display: block; width: 100%; padding: 7px;
+      display: block; width: 100%; padding: 8px;
       background: #C45B38; color: white; border: none;
-      border-radius: 8px; font-size: 12px; cursor: pointer; font-weight: 500;
+      border-radius: 8px; font-size: 12px; cursor: pointer; font-weight: 600;
     }
   </style>
 </head>
 <body>
+
 <div id="map"></div>
+
 <script>
   const MAPBOX_TOKEN = "pk.eyJ1IjoiZ25hb3Vpc2FsYWgiLCJhIjoiY21vZGtsdGhvMDNkbjJwczYzcXVnbHBlYiJ9.NluIh57i5SK8hwwksmf6SQ";
   const FIREBASE_PROJECT = "flatterflowsalah";
   const FIREBASE_APIKEY = "AIzaSyDWY8zouKK1wJwGmFIJDudpQls7Q0eFO0A";
 
   const params = new URLSearchParams(window.location.search);
-  const category = params.get('cat') || 'all';
+  const filterCat = params.get('cat') || 'all';
 
-  const map = L.map('map').setView([36.82, 10.18], 12);
+  const map = L.map('map', { zoomControl: false }).setView([36.82, 10.18], 12);
 
   L.tileLayer(
     'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token=' + MAPBOX_TOKEN,
-    { attribution: '© Mapbox © OpenStreetMap', tileSize: 512, zoomOffset: -1, maxZoom: 19 }
+    { attribution: '© Mapbox', tileSize: 512, zoomOffset: -1, maxZoom: 19 }
   ).addTo(map);
 
-  const icons = {
-    restaurant: { emoji: '🍴', cls: 'cat-restaurant' },
-    plage:      { emoji: '🏖', cls: 'cat-plage'      },
-    cafe:       { emoji: '☕', cls: 'cat-cafe'       },
-    activite:   { emoji: '⭐', cls: 'cat-activite'   },
-  };
+  // Variable to store dynamic category styles from Firebase
+  let categoryStyles = {};
 
-  function makeIcon(cat) {
-    const c = icons[cat.toLowerCase()] || { emoji: '📍', cls: 'cat-restaurant' };
+  // 1. Fetch Categories first to get Emojis and Colors
+  async function loadStyles() {
+    try {
+      const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents/categories?key=${FIREBASE_APIKEY}`;
+      const res = await fetch(url);
+      const data = await res.json();
+
+      (data.documents || []).forEach(doc => {
+        const f = doc.fields;
+        const name = f.name?.stringValue.toLowerCase();
+        categoryStyles[name] = {
+          emoji: f.emoji?.stringValue || '📍',
+          color: f.color?.stringValue || '#C45B38' // Default honey brown
+        };
+      });
+      console.log("Styles loaded:", categoryStyles);
+    } catch (e) {
+      console.error("Error loading categories:", e);
+    }
+  }
+
+  // 2. Build the Marker based on Category Style
+  function makeIcon(catName) {
+    const style = categoryStyles[catName.toLowerCase()] || { emoji: '📍', color: '#999' };
     return L.divIcon({
       className: '',
-      html: `<div class="marker-icon ${c.cls}"><span>${c.emoji}</span></div>`,
+      html: `<div class="marker-icon" style="background: ${style.color}"><span>${style.emoji}</span></div>`,
       iconSize: [36, 36],
       iconAnchor: [18, 36],
       popupAnchor: [0, -38]
     });
   }
 
+  // 3. Load Spots and apply filter
   async function loadSpots() {
+    await loadStyles(); // Ensure styles are ready before placing markers
+
     try {
       const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents/spots?key=${FIREBASE_APIKEY}&pageSize=200`;
       const res = await fetch(url);
@@ -78,12 +101,13 @@
 
       (data.documents || []).forEach(doc => {
         const f = doc.fields;
-        const cat = f.category?.stringValue || '';
+        const spotCat = f.category?.stringValue || 'Default';
         
+        // Filter out unvalidated spots
         if (f.status?.stringValue !== 'validated') return;
 
-        // Case-insensitive filtering
-        if (category.toLowerCase() !== 'all' && cat.toLowerCase() !== category.toLowerCase()) return;
+        // URL Filter Logic
+        if (filterCat.toLowerCase() !== 'all' && spotCat.toLowerCase() !== filterCat.toLowerCase()) return;
 
         const lat = f.lat?.doubleValue || parseFloat(f.lat?.integerValue || 0);
         const lng = f.lng?.doubleValue || parseFloat(f.lng?.integerValue || 0);
@@ -91,8 +115,8 @@
         if (lat && lng) {
           addMarker({
             id: doc.name.split('/').pop(),
-            name: f.name?.stringValue || '',
-            category: cat,
+            name: f.name?.stringValue || 'Unknown Spot',
+            category: spotCat,
             city: f.city?.stringValue || '',
             score: (f.score?.doubleValue || 0),
             photo: f.photo_url?.stringValue || '',
@@ -103,15 +127,15 @@
     } catch (e) {
       console.error("Error loading spots:", e);
     }
-  } // <--- THIS WAS MISSING
+  }
 
   function addMarker(s) {
-    const popup = `
+    const popupHtml = `
       <div class="popup-box">
         ${s.photo ? `<img class="popup-img" src="${s.photo}" onerror="this.style.display='none'">` : ''}
         <div class="popup-body">
           <div class="popup-name">${s.name}</div>
-          <div class="popup-meta">${s.city} · ${s.category}</div>
+          <div class="popup-meta">${s.city} • ${s.category}</div>
           <div class="popup-score">★ ${Number(s.score).toFixed(1)}</div>
           <button class="popup-btn" onclick="openSpot('${s.id}')">Voir le spot</button>
         </div>
@@ -119,14 +143,16 @@
 
     L.marker([s.lat, s.lng], { icon: makeIcon(s.category) })
       .addTo(map)
-      .bindPopup(popup, { maxWidth: 220 });
+      .bindPopup(popupHtml, { maxWidth: 220 });
   }
 
   function openSpot(spotId) {
     try {
+      // For FlutterFlow InAppWebView
       window.flutter_inappwebview.callHandler('openSpot', spotId);
     } catch(e) {
-      window.location.href = 'flatterflow://spot/' + spotId;
+      // Fallback for deep linking
+      window.location.href = '93aydaasal://spot/' + spotId;
     }
   }
 
