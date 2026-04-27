@@ -119,7 +119,8 @@ function makeIcon(catName) {
         const f = doc.fields;
         const spotCat = f.category?.stringValue || 'Default';
 
-        if (f.status?.stringValue !== 'validated') return;
+        iconst status = f.status?.stringValue || '';
+        if (status !== 'validated' && status !== 'verfier') return;
 
         if (filterCat.toLowerCase() !== 'all' && spotCat.toLowerCase() !== filterCat.toLowerCase()) return;
 
