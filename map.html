@@ -1,23 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta http-equiv="Content-Security-Policy" content="default-src *; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     #map { width: 100vw; height: 100vh; background: #f8f1e9; }
-
-    .marker-icon {
-      width: 36px; height: 36px; border-radius: 50% 50% 50% 0;
-      transform: rotate(-45deg);
-      display: flex; align-items: center; justify-content: center;
-      border: 2px solid white;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    }
-    .marker-icon span { transform: rotate(45deg); font-size: 16px; }
-
     .leaflet-popup-content-wrapper { border-radius: 12px; padding: 0; overflow: hidden; }
     .leaflet-popup-content { margin: 0; }
     .popup-box { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; min-width: 180px; }
@@ -34,9 +23,7 @@
   </style>
 </head>
 <body>
-
 <div id="map"></div>
-
 <script>
   const MAPBOX_TOKEN = "pk.eyJ1IjoiZ25hb3Vpc2FsYWgiLCJhIjoiY21vZGtsdGhvMDNkbjJwczYzcXVnbHBlYiJ9.NluIh57i5SK8hwwksmf6SQ";
   const FIREBASE_PROJECT = "flatterflowsalah";
@@ -59,7 +46,6 @@
       const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents/categories?key=${FIREBASE_APIKEY}`;
       const res = await fetch(url);
       const data = await res.json();
-
       (data.documents || []).forEach(doc => {
         const f = doc.fields;
         const name = (f.name?.stringValue || '').toLowerCase().trim();
@@ -67,49 +53,44 @@
           emoji: f.emoji?.stringValue || '📍',
           color: f.color?.stringValue || '#C45B38'
         };
-        console.log("✅ Stored category key:", name, "→", categoryStyles[name]);
       });
-
     } catch (e) {
-      console.error("❌ Error loading categories:", e);
+      console.error("Error loading categories:", e);
     }
   }
 
-function makeIcon(catName) {
-  const key = (catName || '').toLowerCase().trim();
-  const style = categoryStyles[key] || { emoji: '📍', color: '#999999' };
+  function makeIcon(catName) {
+    const key = (catName || '').toLowerCase().trim();
+    const style = categoryStyles[key] || { emoji: '📍', color: '#999999' };
 
-  const canvas = document.createElement('canvas');
-  canvas.width = 36;
-  canvas.height = 36;
-  const ctx = canvas.getContext('2d');
+    const canvas = document.createElement('canvas');
+    canvas.width = 40;
+    canvas.height = 40;
+    const ctx = canvas.getContext('2d');
 
-  // Draw circle
-  ctx.beginPath();
-  ctx.arc(18, 18, 16, 0, 2 * Math.PI);
-  ctx.fillStyle = style.color;
-  ctx.fill();
-  ctx.strokeStyle = 'white';
-  ctx.lineWidth = 2;
-  ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(20, 20, 18, 0, 2 * Math.PI);
+    ctx.fillStyle = style.color;
+    ctx.fill();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
 
-  // Draw emoji
-  ctx.font = '16px serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(style.emoji, 18, 18);
+    ctx.font = '18px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(style.emoji, 20, 20);
 
-  return L.icon({
-    iconUrl: canvas.toDataURL(),
-    iconSize: [36, 36],
-    iconAnchor: [18, 18],
-    popupAnchor: [0, -20]
-  });
-}
+    return L.icon({
+      iconUrl: canvas.toDataURL(),
+      iconSize: [40, 40],
+      iconAnchor: [20, 20],
+      popupAnchor: [0, -22]
+    });
+  }
 
   async function loadSpots() {
     await loadStyles();
-
     try {
       const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents/spots?key=${FIREBASE_APIKEY}&pageSize=200`;
       const res = await fetch(url);
@@ -118,16 +99,14 @@ function makeIcon(catName) {
       (data.documents || []).forEach(doc => {
         const f = doc.fields;
         const spotCat = f.category?.stringValue || 'Default';
+        const status = f.status?.stringValue || '';
 
-        iconst status = f.status?.stringValue || '';
         if (status !== 'validated' && status !== 'verfier') return;
 
         if (filterCat.toLowerCase() !== 'all' && spotCat.toLowerCase() !== filterCat.toLowerCase()) return;
 
         const lat = f.lat?.doubleValue || parseFloat(f.lat?.integerValue || 0);
         const lng = f.lng?.doubleValue || parseFloat(f.lng?.integerValue || 0);
-
-        console.log(`📍 Spot: "${f.name?.stringValue}" | category: "${spotCat}"`);
 
         if (lat && lng) {
           addMarker({
@@ -142,7 +121,7 @@ function makeIcon(catName) {
         }
       });
     } catch (e) {
-      console.error("❌ Error loading spots:", e);
+      console.error("Error loading spots:", e);
     }
   }
 
